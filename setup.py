@@ -13,6 +13,8 @@ setup(
         "scipy>=1.10.0",
         "numpy>=1.24.0",
         "python-dotenv>=1.0.0",
+        "torch>=2.0.0",
+        "torchaudio>=2.0.0",
     ],
     extras_require={
         "whisper": [
