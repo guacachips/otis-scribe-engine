@@ -44,8 +44,36 @@ pip install -e ".[all]"
 
 1. Update `setup.py`
 2. Test with `pip install -e ".[all]"` in fresh env
-3. Run full test suite
-4. Update README.md if user-facing change
+3. Update README.md if user-facing change
+
+## Releasing a New Version
+
+When user asks to create a new release:
+
+1. **Update version** in `setup.py`:
+   - Patch (0.2.0 → 0.2.1): Bug fixes, chores
+   - Minor (0.2.0 → 0.3.0): New features
+   - Major (0.x.x → 1.0.0): Breaking changes (wait until truly stable)
+
+2. **Commit version bump**:
+   ```bash
+   git add setup.py
+   git commit -m "Bumped to VX.Y.Z"
+   git push
+   ```
+
+3. **Create and push tag**:
+   ```bash
+   git tag -a vX.Y.Z -m "Release vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+**Commit message convention (for actual code changes):**
+- `fix:` - Bug fixes
+- `feat:` - New features
+- `chore:` - Maintenance/cleanup (removing files, dependencies)
+- `docs:` - Documentation changes
+- No prefix - Version bumps ("Bumped to VX.Y.Z"), initial commits, major releases
 
 ## How to Verify Changes
 
