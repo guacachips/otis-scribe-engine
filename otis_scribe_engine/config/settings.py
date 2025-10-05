@@ -8,6 +8,7 @@ class UserSettings:
     """User preferences for transcription"""
     transcription_engine: str = "gemini"
     whisper_model: str = "tiny"
+    language: str = "fr"  # Default to French, change to "en" for English or None for auto-detect
 
     @classmethod
     def get_config_path(cls) -> Path:

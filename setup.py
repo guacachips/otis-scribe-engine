@@ -19,18 +19,14 @@ setup(
     extras_require={
         "whisper": [
             "torch>=2.0.0",
-            "transformers>=4.30.0",
-            "accelerate>=0.20.0",
-            "huggingface_hub>=0.16.0",
+            "openai-whisper>=20231117",  # Official OpenAI Whisper package
         ],
         "gemini": [
             "google-genai>=1.0.0",
         ],
         "all": [
             "torch>=2.0.0",
-            "transformers>=4.30.0",
-            "accelerate>=0.20.0",
-            "huggingface_hub>=0.16.0",
+            "openai-whisper>=20231117",
             "google-genai>=1.0.0",
         ],
     },

@@ -1,107 +1,90 @@
-import torch
+"""
+Whisper-based transcription module using official openai-whisper package.
+
+This module was migrated from transformers to openai-whisper to avoid breaking changes
+in transformers 4.50+ that caused incomplete transcriptions.
+
+Note: openai-whisper does not support MPS (Apple Metal) due to sparse tensor limitations.
+However, CPU performance is excellent - typically 7-10x faster than the previous
+transformers-based implementation even with MPS acceleration.
+
+See PERFORMANCE_COMPARISON.md for benchmarks.
+"""
+
+import whisper
 import time
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-from pathlib import Path
-from dataclasses import dataclass
+import torch
 from typing import Optional
 from .base import Transcriber
-from ..config.model_paths import MODEL_PATHS
 
-@dataclass
-class TranscriptionConfig:
-    """Configuration for transcription processing"""
-    model_id: str = "openai/whisper-tiny"
-    device: str = "auto"
-    torch_dtype: Optional[torch.dtype] = None
-    low_cpu_mem_usage: bool = True
-    use_safetensors: bool = True
-    force_local: bool = True
 
 class WhisperTranscriber(Transcriber):
-    """Local Whisper-based transcription."""
+    """Local Whisper-based transcription using openai-whisper."""
 
-    def __init__(self, model_id="openai/whisper-tiny", device="auto", debug=False):
+    # Model name mapping: HuggingFace names -> openai-whisper names
+    MODEL_NAME_MAP = {
+        "openai/whisper-tiny": "tiny",
+        "openai/whisper-base": "base",
+        "openai/whisper-small": "small",
+        "openai/whisper-medium": "medium",
+        "openai/whisper-large": "large",
+        "openai/whisper-large-v2": "large-v2",
+        "openai/whisper-large-v3": "large-v3",
+        "openai/whisper-large-v3-turbo": "turbo",
+        # Also support direct names
+        "tiny": "tiny",
+        "base": "base",
+        "small": "small",
+        "medium": "medium",
+        "large": "large",
+        "turbo": "turbo",
+    }
+
+    def __init__(self, model_id="openai/whisper-tiny", device="auto", debug=False, language=None):
         """Initialize Whisper transcriber.
 
         Args:
-            model_id: Whisper model identifier (e.g., "openai/whisper-tiny")
-            device: Device to use ("auto", "cpu", "cuda", "mps")
+            model_id: Whisper model identifier (e.g., "openai/whisper-tiny" or "tiny")
+            device: Device to use ("auto", "cpu", "cuda") - Note: MPS not supported
             debug: Enable debug mode (detailed metrics)
+            language: Language code (e.g., "fr", "en") or None for auto-detection
         """
         self.debug = debug
-        self.config = TranscriptionConfig(model_id=model_id, device=device)
+        self.language = language
+        self.model_id_original = model_id
 
+        # Convert model name if needed
+        self.model_name = self.MODEL_NAME_MAP.get(model_id, model_id)
+
+        # Determine device (Note: openai-whisper doesn't support MPS)
         if device == "auto":
-            if torch.backends.mps.is_available():
-                self.config.device = "mps"
-                self.config.torch_dtype = torch.float16
-            elif torch.cuda.is_available():
-                self.config.device = "cuda"
-                self.config.torch_dtype = torch.float16
+            if torch.cuda.is_available():
+                self.device = "cuda"
             else:
-                self.config.device = "cpu"
-                self.config.torch_dtype = torch.float32
+                self.device = "cpu"
+                if torch.backends.mps.is_available() and self.debug:
+                    print("⚠️  MPS available but not supported by openai-whisper - using CPU")
         else:
-            self.config.device = device
-            if device in ("cuda", "mps"):
-                self.config.torch_dtype = torch.float16
+            if device == "mps":
+                print("⚠️  MPS not supported by openai-whisper - falling back to CPU")
+                self.device = "cpu"
             else:
-                self.config.torch_dtype = torch.float32
+                self.device = device
 
-        self.pipe = self._create_pipeline()
-
-    def _create_pipeline(self):
-        """Create the Whisper pipeline with configured model"""
         if self.debug:
-            print(f"Using device: {self.config.device}")
+            print(f"Loading Whisper model: {self.model_name}")
+            print(f"Device: {self.device}")
 
-        local_model_path = None
-        if self.config.force_local:
-            local_model_path = MODEL_PATHS.get_whisper_model_path(self.config.model_id)
-            if local_model_path and MODEL_PATHS.model_exists(local_model_path):
-                if self.debug:
-                    print(f"Using local model: {local_model_path}")
-                model_source = str(local_model_path)
-            else:
-                if self.debug:
-                    print(f"Warning: Local model not found at {local_model_path}")
-                    print(f"Falling back to online model: {self.config.model_id}")
-                model_source = self.config.model_id
-        else:
-            model_source = self.config.model_id
+        # Load model
+        start_time = time.time()
+        self.model = whisper.load_model(self.model_name, device=self.device)
+        load_time = time.time() - start_time
 
-        load_kwargs = {
-            "torch_dtype": self.config.torch_dtype,
-            "low_cpu_mem_usage": self.config.low_cpu_mem_usage,
-            "use_safetensors": self.config.use_safetensors
-        }
-
-        if local_model_path and MODEL_PATHS.model_exists(local_model_path):
-            load_kwargs["local_files_only"] = True
-
-        model = AutoModelForSpeechSeq2Seq.from_pretrained(
-            model_source,
-            **load_kwargs
-        )
-        model.to(self.config.device)
-
-        processor = AutoProcessor.from_pretrained(
-            model_source,
-            local_files_only=local_model_path and MODEL_PATHS.model_exists(local_model_path)
-        )
-
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model=model,
-            tokenizer=processor.tokenizer,
-            feature_extractor=processor.feature_extractor,
-            torch_dtype=self.config.torch_dtype,
-            device=self.config.device,
-        )
-        return pipe
+        if self.debug:
+            print(f"Model loaded in {load_time:.2f}s")
 
     def transcribe(self, audio_file_path):
-        """Transcribe audio using local Whisper model.
+        """Transcribe audio using openai-whisper.
 
         Args:
             audio_file_path: Path to audio file
@@ -118,11 +101,23 @@ class WhisperTranscriber(Transcriber):
         if self.debug:
             print(f"Transcribing audio file: {audio_file_path}")
 
-        result = self.pipe(str(audio_file_path))
+        # Transcribe with language parameter if specified
+        transcribe_kwargs = {}
+        if self.language:
+            transcribe_kwargs['language'] = self.language
+            if self.debug:
+                print(f"Using language: {self.language}")
+
+        result = self.model.transcribe(str(audio_file_path), **transcribe_kwargs)
         transcription_time = time.time() - start_time
 
+        if self.debug:
+            print(f"Transcription completed in {transcription_time:.2f}s")
+            print(f"Detected language: {result.get('language', 'N/A')}")
+            print(f"Segments: {len(result.get('segments', []))}")
+
         return {
-            'text': result["text"].strip(),
+            'text': result['text'].strip(),
             'transcription_time': transcription_time,
-            'model': self.config.model_id
+            'model': self.model_id_original
         }
