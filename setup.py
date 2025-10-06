@@ -24,15 +24,22 @@ setup(
         "gemini": [
             "google-genai>=1.0.0",
         ],
+        "mistral": [
+            "mistralai>=1.0.0",
+        ],
+        "dev": [
+            "pytest>=7.0.0",
+        ],
         "all": [
             "torch>=2.0.0",
             "openai-whisper>=20231117",
             "google-genai>=1.0.0",
+            "mistralai>=1.0.0",
         ],
     },
     python_requires=">=3.11",
     author="guacachips",
-    description="Voice recording and transcription engine with VAD and multiple backends (Whisper, Gemini)",
+    description="Voice recording and transcription engine with VAD and multiple backends (Whisper, Gemini, Mistral)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/guacachips/otis-scribe-engine",

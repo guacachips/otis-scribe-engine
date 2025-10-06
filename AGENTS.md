@@ -2,37 +2,76 @@
 
 ## Testing Philosophy
 
-**No unit tests** - The codebase is small enough (~1000 lines) that unit tests provide no value.
+**Context:** This library is used by multiple client apps (macOS, iOS, Web API). Our users are app developers who depend on a stable contract.
 
-**Testing approach:**
-- Manual testing via the macOS app (otis-dictation-macos-app)
-- Quick smoke tests by importing and creating objects in Python REPL
-- Integration tests only when adding complex features
+**Why integration tests only:**
+- Mocked tests give false confidence (pass even when real provider APIs break)
+- Real breakage happens when: provider SDK updates, API changes, auth methods change
+- Library logic is simple (~50 lines per provider) - mocks test nothing useful
+- Integration tests catch what actually breaks in production
+
+**Test strategy:**
+- Each provider gets ONE integration test in its subfolder (e.g., `mistral_api/test_mistral.py`)
+- Test verifies the contract: `{'text': str, 'transcription_time': float, 'model': str}`
+- Tests use real API + real audio (`test_fixtures/sample.wav`)
+- Skip automatically if API keys not in `.env` (safe for CI/local)
+
+**Pre-release workflow (CRITICAL):**
+```bash
+# Before tagging any release
+make test  # All integration tests must pass
+
+# If any fail: provider API broke, fix before releasing
+```
+
+**Adding new providers:**
+1. Create `transcription/provider_name/` subfolder
+2. Add provider implementation + `test_provider.py` (co-located)
+3. One integration test verifying the contract
+4. Update `.env.example` with required API key
+
+**Running tests:**
+```bash
+make test                    # All providers
+make test                    # Uses .env for API keys
+python -m pytest path/to/test_provider.py -v  # Specific provider
+```
 
 **Do NOT:**
-- Add pytest tests for basic imports/object creation
-- Test things that would obviously crash if broken
-- Write tests that don't test actual functionality
+- Mock external APIs (defeats the purpose)
+- Test imports or trivial code
+- Add tests without real value
 
 ## Development Setup
 
 ```bash
-pip install -e ".[all]"
+# Install dependencies
+pip install -e ".[all,dev]"
+
+# Configure API keys
+cp .env.example .env
+# Edit .env and add your actual API keys
 ```
 
 ## Code Principles
 
-1. **Small codebase** (~1000 lines) - Don't add unnecessary complexity
-2. **No verbose docs** - Code should be self-explanatory
-3. **Test after refactoring** - See "Critical Rule" above
-4. **Minimal dependencies** - Only add if truly needed
+1. **Correctness and clarity first** - Speed and efficiency are secondary unless specified
+2. **No summary comments** - Only write comments to explain "why" for tricky/non-obvious code
+3. **Prefer existing files** - Only create new files for new logical components
+4. **Small codebase** (~1000 lines) - Don't add unnecessary complexity
+5. **Self-explanatory code** - Code should be readable without verbose docs
+6. **Minimal dependencies** - Only add if truly needed
 
 ## Architecture
 
 - `audio/` - VAD recording (don't touch unless audio issues)
-- `transcription/whisper.py` - Uses openai-whisper (not transformers!)
-- `transcription/gemini.py` - Gemini API wrapper
+- `transcription/` - Provider implementations:
+  - `whisper.py` - Local Whisper (openai-whisper, not transformers!)
+  - `gemini.py` - Gemini API wrapper (legacy structure)
+  - `mistral_api/` - Mistral API wrapper (NEW pattern: subfolder with tests)
+  - Future providers follow `mistral_api/` pattern (subfolder + co-located tests)
 - `config/` - Settings, model paths
+- `test_fixtures/` - Sample audio for integration tests
 
 ## Key Decisions
 
@@ -77,22 +116,28 @@ When user asks to create a new release:
 
 ## How to Verify Changes
 
-1. **Import test** - Does it import without crashing?
+1. **Integration tests** - Do real APIs still work?
+   ```bash
+   make test  # Must pass before releasing
+   ```
+
+2. **Import test** - Does it import without crashing?
    ```bash
    python -c "from otis_scribe_engine import get_transcriber, AudioRecorder"
    ```
 
-2. **App test** - Does the macOS app still work?
+3. **App test** - Do client apps still work?
    ```bash
    cd ../otis-dictation-macos-app
    python app.py
-   # Record something and verify transcription works
+   # Record and verify transcription works
    ```
 
 ## What NOT to Do
 
 - ❌ Add transformers dependency back
 - ❌ Write verbose documentation
-- ❌ Add useless unit tests
+- ❌ Add mocked tests (use real integration tests only)
 - ❌ Make README longer than code
 - ❌ Add complexity without reason
+- ❌ Ship releases without running `make test`

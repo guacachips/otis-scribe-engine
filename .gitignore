@@ -47,6 +47,7 @@ htmlcov/
 # Models and cache
 models/
 *.wav
+!test_fixtures/*.wav
 *.mp3
 *.tmp
 

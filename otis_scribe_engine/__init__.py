@@ -5,7 +5,7 @@ PACKAGE_ROOT = Path(__file__).parent
 
 from .audio import AudioRecorder, VADConfig, AudioDeviceManager
 from .transcription import get_transcriber, Transcriber
-from .config import UserSettings, MODEL_PATHS
+from .config import MODEL_PATHS
 
 __all__ = [
     'AudioRecorder',
@@ -13,7 +13,6 @@ __all__ = [
     'AudioDeviceManager',
     'get_transcriber',
     'Transcriber',
-    'UserSettings',
     'MODEL_PATHS',
     '__version__',
 ]
