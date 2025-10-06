@@ -52,8 +52,7 @@ class GeminiTranscriber(Transcriber):
                     contents=[audio_file]
                 )
                 tokens_data = {
-                    'total_tokens': token_response.total_tokens,
-                    'input_cost': token_response.total_tokens * 0.30 / 1_000_000,
+                    'total_tokens': token_response.total_tokens
                 }
             except Exception as e:
                 print(f"⚠️ Token counting failed: {e}")
@@ -76,8 +75,7 @@ class GeminiTranscriber(Transcriber):
         if self.debug and tokens_data:
             output_tokens = len(response.text.split()) * 1.3
             tokens_data['output_tokens'] = int(output_tokens)
-            tokens_data['output_cost'] = output_tokens * 0.40 / 1_000_000
-            tokens_data['total_cost'] = tokens_data['input_cost'] + tokens_data['output_cost']
+            tokens_data['total_tokens'] += int(output_tokens)
 
         result = {
             'text': response.text.strip(),

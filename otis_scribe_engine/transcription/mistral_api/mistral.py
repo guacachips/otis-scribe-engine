@@ -39,7 +39,8 @@ class MistralTranscriber(Transcriber):
             dict: {
                 'text': str,
                 'transcription_time': float,
-                'model': str
+                'model': str,
+                'tokens': dict (if debug=True)
             }
         """
         start_time = time.time()
@@ -65,8 +66,16 @@ class MistralTranscriber(Transcriber):
             if hasattr(response, 'language'):
                 print(f"Detected language: {response.language}")
 
-        return {
+        result = {
             'text': response.text.strip(),
             'transcription_time': transcription_time,
             'model': self.model
         }
+
+        if self.debug:
+            output_tokens = len(response.text.split()) * 1.3
+            result['tokens'] = {
+                'total_tokens': int(output_tokens)
+            }
+
+        return result
