@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-10-06
+
+### Added
+- Token tracking for Mistral transcriber (debug mode)
+
+### Changed
+- Removed cost calculation from Gemini and Mistral transcribers
+- Simplified token data structure (only total_tokens returned)
+
 ## [0.3.0] - 2025-10-05
 
 ### Added
@@ -50,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Audio device management
 - User settings and model paths configuration
 
+[0.3.1]: https://github.com/guacachips/otis-scribe-engine/releases/tag/v0.3.1
 [0.3.0]: https://github.com/guacachips/otis-scribe-engine/releases/tag/v0.3.0
 [0.2.2]: https://github.com/guacachips/otis-scribe-engine/releases/tag/v0.2.2
 [0.2.1]: https://github.com/guacachips/otis-scribe-engine/releases/tag/v0.2.1
