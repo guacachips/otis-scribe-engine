@@ -21,17 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved contribution guidelines in README
 - Enhanced AGENTS.md with coding principles and test strategy
 
-## [0.2.2] - 2024
+## [0.2.2] - 2025-10-05
 
 ### Changed
 - Updated release process and commit conventions in AGENTS.md
 
-## [0.2.1] - 2024
+## [0.2.1] - 2025-10-05
 
 ### Removed
 - Obsolete HuggingFace model download scripts
 
-## [0.2.0] - 2024
+## [0.2.0] - 2025-10-05
 
 ### Changed
 - Migrated from transformers to openai-whisper for better performance and compatibility
@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - torch and torchaudio as base dependencies for VAD support
 
-## [0.1.0] - 2024
+## [0.1.0] - 2025-10-05
 
 ### Added
 - Initial release of Otis Scribe Engine
