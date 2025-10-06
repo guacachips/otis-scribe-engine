@@ -89,22 +89,37 @@ cp .env.example .env
 
 When user asks to create a new release:
 
-1. **Update version** in `setup.py`:
+1. **Run integration tests**:
+   ```bash
+   make test  # Must pass before releasing
+   ```
+
+2. **Update CHANGELOG.md**:
+   - Add new version section with date
+   - Document Added/Changed/Removed/Fixed items
+   - Follow [Keep a Changelog](https://keepachangelog.com) format
+
+3. **Update version** in `setup.py`:
    - Patch (0.2.0 → 0.2.1): Bug fixes, chores
    - Minor (0.2.0 → 0.3.0): New features
    - Major (0.x.x → 1.0.0): Breaking changes (wait until truly stable)
 
-2. **Commit version bump**:
+4. **Commit and push**:
    ```bash
-   git add setup.py
+   git add CHANGELOG.md setup.py
    git commit -m "Bumped to VX.Y.Z"
    git push
    ```
 
-3. **Create and push tag**:
+5. **Create and push tag**:
    ```bash
    git tag -a vX.Y.Z -m "Release vX.Y.Z"
    git push origin vX.Y.Z
+   ```
+
+6. **Create GitHub Release**:
+   ```bash
+   gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes "Release notes from CHANGELOG.md"
    ```
 
 **Commit message convention (for actual code changes):**
