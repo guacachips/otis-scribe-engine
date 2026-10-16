@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-16
+
+### Added
+- `local-server` engine: `LocalServerTranscriber(base_url="http://127.0.0.1:6847", model="voxtral-realtime-4bit", language=None, timeout=600)` transcribes through a running `otis-speech-server` (local MLX Voxtral/Whisper models) over its OpenAI-style `/v1/audio/transcriptions` endpoint, using only the standard library
+- `LocalServerUnavailableError` (a `ConnectionError`) when the server is not reachable, with the command to start it; server errors are raised as `RuntimeError` carrying the server's message
+- Integration test that skips when no server is running (`OTIS_SPEECH_SERVER_URL` / `OTIS_SPEECH_SERVER_MODEL` override address and model)
+
 ## [0.3.2] - 2026-10-16
 
 ### Added

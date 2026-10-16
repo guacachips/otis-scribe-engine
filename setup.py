@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="otis-scribe-engine",
-    version="0.3.2",
+    version="0.4.0",
     packages=find_packages(),
     install_requires=[
         "sounddevice>=0.4.0",
@@ -39,7 +39,7 @@ setup(
     },
     python_requires=">=3.11",
     author="guacachips",
-    description="Voice recording and transcription engine with VAD and multiple backends (Whisper, Gemini, Mistral)",
+    description="Voice recording and transcription engine with VAD and multiple backends (Whisper, Gemini, Mistral, local otis-speech-server)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/guacachips/otis-scribe-engine",
