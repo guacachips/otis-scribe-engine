@@ -106,12 +106,13 @@ class AudioRecorder:
         AudioDeviceManager.refresh()
         self.device_id, self.device_info, source = AudioDeviceManager.resolve_input_device(self.device_pref)
 
-        system_default = AudioDeviceManager.get_system_default_input_name()
+        system_default, system_default_error = AudioDeviceManager.get_system_default_input()
+        system_default_text = repr(system_default) if system_default else f"<query failed: {system_default_error}>"
         portaudio_default_id = AudioDeviceManager.get_default_devices()[0]
         portaudio_default = AudioDeviceManager.get_device_info(portaudio_default_id)
         portaudio_default_name = portaudio_default['name'] if portaudio_default else None
         print(f"\nRecording device: '{self.device_info['name']}' [#{self.device_id}] via {source}"
-              f" | macOS default: {system_default!r}"
+              f" | macOS default: {system_default_text}"
               f" | PortAudio default: {portaudio_default_name!r} [#{portaudio_default_id}]")
 
     def record(self) -> Tuple[Path, float]:
@@ -156,7 +157,7 @@ class AudioRecorder:
 
         dead_input_frames = self.DEAD_INPUT_SECONDS * self.sample_rate
         try:
-            with sd.InputStream(
+            with AudioDeviceManager.stream_open(), sd.InputStream(
                 device=self.device_id,
                 channels=1,
                 samplerate=self.sample_rate,
@@ -167,6 +168,10 @@ class AudioRecorder:
                 while self.is_recording:
                     sd.sleep(100)
                     if not self._signal_seen and self._frames_seen >= dead_input_frames:
+                        self._dead_input = True
+                        break
+                    # A device whose IO proc never fires would otherwise hang this loop forever.
+                    if self._frames_seen == 0 and time.time() - self.start_time > 3 * self.DEAD_INPUT_SECONDS:
                         self._dead_input = True
                         break
         except sd.CallbackStop:

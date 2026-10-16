@@ -7,7 +7,7 @@ import ctypes
 import struct
 import sys
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def _fourcc(code: str) -> int:
@@ -56,7 +56,14 @@ def _frameworks():
     return get_property, core_foundation
 
 
-def _query_default_input_device_name() -> Optional[str]:
+def _describe_status(status: int) -> str:
+    code = struct.pack('>i', status)
+    if all(32 <= byte < 127 for byte in code):
+        return f"{status} ('{code.decode('ascii')}')"
+    return str(status)
+
+
+def _query_default_input_device() -> Tuple[Optional[str], Optional[str]]:
     get_property, cf = _frameworks()
 
     address = _AudioObjectPropertyAddress(_DEFAULT_INPUT_DEVICE, _SCOPE_GLOBAL, _ELEMENT_MAIN)
@@ -64,8 +71,10 @@ def _query_default_input_device_name() -> Optional[str]:
     size = ctypes.c_uint32(ctypes.sizeof(device_id))
     status = get_property(_SYSTEM_OBJECT, ctypes.byref(address), 0, None,
                           ctypes.byref(size), ctypes.byref(device_id))
-    if status != 0 or device_id.value == _UNKNOWN_OBJECT:
-        return None
+    if status != 0:
+        return None, f"default input query failed: status={_describe_status(status)}"
+    if device_id.value == _UNKNOWN_OBJECT:
+        return None, "no default input device"
 
     address.mSelector = _OBJECT_NAME
     cf_name = ctypes.c_void_p()
@@ -73,24 +82,34 @@ def _query_default_input_device_name() -> Optional[str]:
     status = get_property(device_id.value, ctypes.byref(address), 0, None,
                           ctypes.byref(size), ctypes.byref(cf_name))
     if status != 0 or not cf_name.value:
-        return None
+        return None, f"name query for device {device_id.value} failed: status={_describe_status(status)}"
 
     # kAudioObjectPropertyName hands us an owned CFString: we must release it.
     try:
         buffer_size = cf.CFStringGetMaximumSizeForEncoding(cf.CFStringGetLength(cf_name), _UTF8) + 1
         buffer = ctypes.create_string_buffer(buffer_size)
         if not cf.CFStringGetCString(cf_name, buffer, buffer_size, _UTF8):
-            return None
-        return buffer.value.decode('utf-8')
+            return None, f"name of device {device_id.value} is not convertible to UTF-8"
+        return buffer.value.decode('utf-8'), None
     finally:
         cf.CFRelease(cf_name)
 
 
+def query_default_input_device() -> Tuple[Optional[str], Optional[str]]:
+    """
+    Current macOS default input device. Never raises.
+
+    Returns:
+        Tuple[Optional[str], Optional[str]]: (device name, None) on success, (None, failure reason) otherwise
+    """
+    if sys.platform != 'darwin':
+        return None, "not macOS"
+    try:
+        return _query_default_input_device()
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+
 def get_default_input_device_name() -> Optional[str]:
     """Name of the current macOS default input device, or None if it cannot be determined."""
-    if sys.platform != 'darwin':
-        return None
-    try:
-        return _query_default_input_device_name()
-    except Exception:
-        return None
+    return query_default_input_device()[0]

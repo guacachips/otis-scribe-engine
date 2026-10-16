@@ -1,9 +1,17 @@
+import threading
+from contextlib import contextmanager
 import sounddevice as sd
 from typing import Dict, List, Tuple, Optional, Union
-from .coreaudio import get_default_input_device_name
+from .coreaudio import query_default_input_device
 
 class AudioDeviceManager:
     """Manages audio device discovery and selection"""
+
+    # Serializes PortAudio re-initialization against device queries and stream opening
+    # (the app lists devices on one thread while the recorder runs on another).
+    _lock = threading.RLock()
+    _open_streams = 0
+    _last_missing_preference = None
 
     @staticmethod
     def list_devices() -> List[Dict]:
@@ -30,25 +38,47 @@ class AudioDeviceManager:
         """
         Re-initialize PortAudio so it sees devices plugged in and default changes since import.
 
-        Pa_Terminate closes every open stream: only call this when no stream is active.
+        Raises:
+            RuntimeError: If a stream is open (Pa_Terminate would close it under the recorder)
         """
         # PortAudio's CoreAudio backend reads the device list and default input only in
         # Pa_Initialize and never listens for changes, so a long-running process keeps
         # recording from whatever was the default at launch. sounddevice exposes no public
-        # re-init, hence its private helpers.
-        if sd._initialized:
-            sd._terminate()
-        sd._initialize()
+        # re-init, hence its private helpers. _last_callback is set by sd.play()/sd.rec().
+        with AudioDeviceManager._lock:
+            if AudioDeviceManager._open_streams or sd._last_callback is not None:
+                raise RuntimeError("PortAudio refresh while a stream is open")
+            if sd._initialized:
+                sd._terminate()
+            sd._initialize()
 
     @staticmethod
-    def get_system_default_input_name() -> Optional[str]:
-        """Current macOS default input device name (live, unlike PortAudio's default)"""
-        return get_default_input_device_name()
+    @contextmanager
+    def stream_open():
+        """Mark a stream as open for its duration, so refresh() refuses to run"""
+        with AudioDeviceManager._lock:
+            AudioDeviceManager._open_streams += 1
+        try:
+            yield
+        finally:
+            with AudioDeviceManager._lock:
+                AudioDeviceManager._open_streams -= 1
+
+    @staticmethod
+    def get_system_default_input() -> Tuple[Optional[str], Optional[str]]:
+        """Current macOS default input device (live, unlike PortAudio's default): (name, failure reason)"""
+        return query_default_input_device()
+
+    @classmethod
+    def get_system_default_input_name(cls) -> Optional[str]:
+        """Current macOS default input device name, or None if CoreAudio cannot tell"""
+        return cls.get_system_default_input()[0]
 
     @staticmethod
     def list_input_device_names() -> List[str]:
         """Unique names of devices that can record, in PortAudio order"""
-        names = [dev['name'] for dev in sd.query_devices() if dev['max_input_channels'] > 0]
+        with AudioDeviceManager._lock:
+            names = [dev['name'] for dev in sd.query_devices() if dev['max_input_channels'] > 0]
         return list(dict.fromkeys(names))
 
     @staticmethod
@@ -117,18 +147,29 @@ class AudioDeviceManager:
         Raises:
             ValueError: If the resolved device cannot record
         """
+        with cls._lock:
+            return cls._resolve_input_device(preference)
+
+    @classmethod
+    def _resolve_input_device(cls, preference: Union[int, str, None]) -> Tuple[int, Dict, str]:
         device_id = None
         source = None
+        missing = None
 
         if isinstance(preference, str):
             device_id = cls.find_input_device(preference)
             if device_id is None:
-                print(f"\n⚠️  Preferred input device '{preference}' not found, falling back to the system default")
+                missing = preference
             else:
                 source = f"preference '{preference}'"
         elif preference is not None:
             device_id = preference
             source = "device ID preference"
+
+        # The app resolves on every menu rebuild: only warn when the situation changes.
+        if missing is not None and missing != cls._last_missing_preference:
+            print(f"\n⚠️  Preferred input device '{missing}' not found, falling back to the system default")
+        cls._last_missing_preference = missing
 
         if device_id is None:
             system_default = cls.get_system_default_input_name()
@@ -138,6 +179,8 @@ class AudioDeviceManager:
             if device_id is None:
                 device_id = cls.get_default_devices()[0]
                 source = "PortAudio default"
+            if missing is not None:
+                source += f" (preferred '{missing}' not found)"
 
         valid, message, device_info = cls.validate_device(device_id)
         if not valid:
