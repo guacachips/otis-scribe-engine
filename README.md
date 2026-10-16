@@ -16,7 +16,8 @@ pip install -e ".[mistral]"      # Mistral API only
 ```python
 from otis_scribe_engine import AudioRecorder, get_transcriber
 
-# Record audio
+# Record audio (device_id: None follows the macOS default, or pass a device name/ID;
+# record() raises DeadInputError if the device delivers only silence)
 recorder = AudioRecorder()
 audio_path, duration = recorder.record()
 
