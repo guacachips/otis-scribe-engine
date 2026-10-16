@@ -4,7 +4,7 @@ __version__ = "0.3.2"
 PACKAGE_ROOT = Path(__file__).parent
 
 from .audio import AudioRecorder, DeadInputError, VADConfig, AudioDeviceManager
-from .transcription import get_transcriber, Transcriber
+from .transcription import get_transcriber, Transcriber, LocalServerTranscriber, LocalServerUnavailableError
 from .config import MODEL_PATHS
 
 __all__ = [
@@ -14,6 +14,8 @@ __all__ = [
     'AudioDeviceManager',
     'get_transcriber',
     'Transcriber',
+    'LocalServerTranscriber',
+    'LocalServerUnavailableError',
     'MODEL_PATHS',
     '__version__',
 ]

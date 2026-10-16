@@ -1,6 +1,6 @@
 # Otis Scribe Engine
 
-Voice recording with VAD auto-stop + transcription (Whisper/Gemini/Mistral).
+Voice recording with VAD auto-stop + transcription (Whisper/Gemini/Mistral/local otis-speech-server).
 
 ## Installation
 
@@ -32,12 +32,17 @@ result = transcriber.transcribe(audio_path)
 # Transcribe with Mistral (requires MISTRAL_API_KEY env var)
 transcriber = get_transcriber("mistral")
 result = transcriber.transcribe(audio_path)
+
+# Transcribe with a running otis-speech-server (local MLX models, no API key;
+# raises LocalServerUnavailableError if the server is not running)
+transcriber = get_transcriber("local-server", model="voxtral-realtime-4bit")  # or "whisper-large-v3-turbo", language="fr"
+result = transcriber.transcribe(audio_path)
 ```
 
 ## Structure
 
 - `audio/` - VAD-based recording (Silero VAD)
-- `transcription/` - Whisper (openai-whisper), Gemini, and Mistral backends
+- `transcription/` - Whisper (openai-whisper), Gemini, Mistral, and local server (`otis-speech-server` over HTTP) backends
 - `config/` - User settings, model paths
 
 ## Note
@@ -64,4 +69,4 @@ make test  # Run integration tests
 python -m pytest otis_scribe_engine/transcription/ -v
 ```
 
-**Note:** Integration tests require API keys in `.env` file (`MISTRAL_API_KEY`, `GOOGLE_API_KEY`). Tests will skip if keys are not set.
+**Note:** Integration tests require API keys in `.env` file (`MISTRAL_API_KEY`, `GOOGLE_API_KEY`). Tests will skip if keys are not set. The local server test skips unless `otis-speech-server` is running (`OTIS_SPEECH_SERVER_URL` / `OTIS_SPEECH_SERVER_MODEL` override address and model).

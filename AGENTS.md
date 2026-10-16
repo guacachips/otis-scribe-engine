@@ -69,6 +69,7 @@ cp .env.example .env
   - `whisper.py` - Local Whisper (openai-whisper, not transformers!)
   - `gemini.py` - Gemini API wrapper (legacy structure)
   - `mistral_api/` - Mistral API wrapper (NEW pattern: subfolder with tests)
+  - `local_server/` - HTTP client for a local `otis-speech-server` (stdlib urllib, no new dependency)
   - Future providers follow `mistral_api/` pattern (subfolder + co-located tests)
 - `config/` - Settings, model paths
 - `test_fixtures/` - Sample audio for integration tests
