@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-10-16
+
+### Added
+- `AudioRecorder(device_id=...)` accepts a device name (resolved at each `record()`, falls back to the macOS default if missing)
+- `DeadInputError` raised when the input device delivers only zeros (after one retry), instead of saving a silent file
+- Live macOS default input lookup via CoreAudio, and one diagnostic line per recording (macOS default, PortAudio default, device opened)
+- `AudioDeviceManager.refresh()`, `list_input_device_names()`, `resolve_input_device()`
+
+### Fixed
+- Recording from a stale microphone: PortAudio froze the default input at import, so a long-running app ignored later default changes. PortAudio is now re-initialized before each recording
+- `device_id=0` was silently replaced by the default device
+- Manual stop saved the recording twice; `stop_recording()` now only stops and `record()` saves
+
 ## [0.3.1] - 2025-10-06
 
 ### Added
