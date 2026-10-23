@@ -3,7 +3,7 @@ from datetime import datetime
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
-from typing import Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 import tempfile
 import time
 from .devices import AudioDeviceManager
@@ -25,7 +25,8 @@ class AudioRecorder:
     def __init__(self,
                  output_dir: Optional[Path] = None,
                  device_id: Union[int, str, None] = None,
-                 vad_config: Optional[VADConfig] = None):
+                 vad_config: Optional[VADConfig] = None,
+                 on_audio: Optional[Callable[[np.ndarray], None]] = None):
         """
         Initialize the recorder
 
@@ -34,8 +35,11 @@ class AudioRecorder:
             device_id (Union[int, str, None]): Device ID or device name to record from
                 (None follows the macOS default input). Resolved at each record() call.
             vad_config (Optional[VADConfig]): Custom VAD configuration
+            on_audio (Optional[Callable]): Receives each captured block (float32 mono 16 kHz,
+                un-normalized) on the PortAudio thread; it must return immediately (enqueue only)
         """
         self.device_pref = device_id
+        self.on_audio = on_audio
         self.device_id = None
         self.device_info = None
         self.sample_rate = 16000
@@ -68,6 +72,9 @@ class AudioRecorder:
 
         self.recording_data.extend(indata[:, 0])
         self.buffer.extend(indata[:, 0])
+        # PortAudio reuses indata after the callback returns, so the consumer gets a copy.
+        if self.on_audio:
+            self.on_audio(indata[:, 0].copy())
 
         if len(self.buffer) >= self.block_size:
             audio_chunk = np.array(self.buffer[:self.block_size])
