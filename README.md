@@ -39,10 +39,24 @@ transcriber = get_transcriber("local-server", model="voxtral-realtime-4bit")  # 
 result = transcriber.transcribe(audio_path)
 ```
 
+### Live transcription (otis-speech-server ≥ 0.2.0, Voxtral only)
+
+Text arrives while you talk. Callbacks run on a background thread.
+
+```python
+from otis_scribe_engine import AudioRecorder, LocalServerLiveTranscriber, VADConfig
+
+live = LocalServerLiveTranscriber(on_delta=lambda delta, text_so_far: print(text_so_far))
+live.start()  # raises LocalServerUnavailableError if the server is not running
+recorder = AudioRecorder(vad_config=VADConfig(silence_duration_max=10.0), on_audio=live.feed)
+recorder.record()
+result = live.finish()  # {'text', 'transcription_time', 'model', 'stats'}; RuntimeError (.code, .partial_text) on failure
+```
+
 ## Structure
 
 - `audio/` - VAD-based recording (Silero VAD)
-- `transcription/` - Whisper (openai-whisper), Gemini, Mistral, and local server (`otis-speech-server` over HTTP) backends
+- `transcription/` - Whisper (openai-whisper), Gemini, Mistral, and local server (`otis-speech-server` over HTTP, live over WebSocket) backends
 - `config/` - User settings, model paths
 
 ## Note
