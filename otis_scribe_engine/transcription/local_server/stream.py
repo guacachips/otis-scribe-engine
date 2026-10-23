@@ -4,7 +4,7 @@ import threading
 import time
 import traceback
 import numpy as np
-from websockets.exceptions import InvalidStatus
+from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus
 from websockets.sync.client import connect
 from .local_server import DEFAULT_BASE_URL, DEFAULT_MODEL, LocalServerUnavailableError
 
@@ -12,6 +12,7 @@ SAMPLE_RATE = 16000
 REALTIME_PATH = "/v1/audio/transcriptions/realtime"
 # 4000 recorder blocks of 512 samples ≈ 2 minutes of audio the sender has not sent yet.
 QUEUE_BLOCKS = 4000
+FAILED = "otis-speech-server live session failed"
 
 
 class LocalServerLiveTranscriber:
@@ -77,17 +78,24 @@ class LocalServerLiveTranscriber:
         Raises:
             LocalServerUnavailableError: the server is not reachable
             TimeoutError: the server accepted the connection but did not complete the handshake
-            RuntimeError: the server refused the WebSocket (e.g. a server without live transcription)
+            RuntimeError: the server refused the WebSocket (e.g. a server without live transcription,
+                or something other than otis-speech-server answering on the port)
         """
         if self._ws is not None:
             raise RuntimeError("start() was already called")
         try:
             # proxy=None: a proxy from the environment or macOS settings must never relay a local server.
-            self._ws = connect(self.ws_url, open_timeout=5, max_size=1 << 20, proxy=None)
+            # close_timeout=1: the default 10 s would stall finish()/cancel() after the server already ended the session.
+            self._ws = connect(self.ws_url, open_timeout=5, close_timeout=1, max_size=1 << 20, proxy=None)
         except InvalidStatus as e:
             raise RuntimeError(
                 f"otis-speech-server at {self.base_url} refused live transcription "
                 f"(HTTP {e.response.status_code}); it may predate the realtime endpoint"
+            ) from None
+        except InvalidHandshake as e:
+            raise RuntimeError(
+                f"otis-speech-server at {self.base_url} refused live transcription ({e}); "
+                "is another program using this port?"
             ) from None
         except TimeoutError:
             raise TimeoutError(f"otis-speech-server at {self.base_url} did not open a WebSocket within 5s") from None
@@ -135,11 +143,12 @@ class LocalServerLiveTranscriber:
 
         Returns:
             dict: {'text': str, 'transcription_time': float, 'model': str, 'stats': dict}
-            transcription_time is the time from the end of the audio to the final text.
+            transcription_time is the time from the end of the audio to the final text; it is 0.0
+            when the server ended the session itself (stop_reason "eos" or "max_duration").
 
         Raises:
-            RuntimeError: the session failed (server error or lost connection); the exception
-                carries .code (server error code or None) and .partial_text
+            RuntimeError: the session failed (server error or lost connection) or was cancelled;
+                the exception carries .code (server error code or None) and .partial_text
             TimeoutError: no final text within timeout seconds (also carries .partial_text)
         """
         if self._ws is None:
@@ -164,9 +173,11 @@ class LocalServerLiveTranscriber:
     def cancel(self):
         """Drop the session without a final text (best effort; safe to call more than once)."""
         self._stopping.set()
+        # Recorded before closing, so finish() reports the cancel instead of blaming the server for the closed socket.
+        session_was_live = self._fail(None, "live session cancelled", notify=False)
         if self._ws is None:
             return
-        if not self._done.is_set():
+        if session_was_live:
             try:
                 self._ws.send(json.dumps({"type": "cancel"}))
             except Exception:
@@ -207,10 +218,12 @@ class LocalServerLiveTranscriber:
                         self._ws.send(_to_pcm16(audio[start:start + self.chunk_samples]))
                     pending = [audio[sendable:]]
                     pending_samples = len(pending[0])
+        except ConnectionClosed:
+            # The receiver owns the report: a final or error may still be queued ahead of the close frame.
+            return
         except Exception as e:
-            # A closed connection also ends the receiver, which reports it; this covers other failures.
             if not self._stopping.is_set():
-                self._fail(None, f"sending audio failed: {e or type(e).__name__}")
+                self._fail(None, f"{FAILED}: sending audio failed: {e or type(e).__name__}")
 
     def _receive_loop(self):
         try:
@@ -234,40 +247,44 @@ class LocalServerLiveTranscriber:
                     self._on_final(event)
                     return
                 elif kind == "error":
-                    self._fail(event.get("code"), event.get("message", ""))
+                    code = event.get("code")
+                    self._fail(code, f"otis-speech-server error {code}: {event.get('message', '')}")
                     return
             if not self._done.is_set():
-                self._fail(None, "the server closed the connection without a final text")
+                self._fail(None, f"{FAILED}: the server closed the connection without a final text")
         except Exception as e:
             if not self._done.is_set():
-                self._fail(None, f"connection lost: {e or type(e).__name__}")
+                self._fail(None, f"{FAILED}: connection lost: {e or type(e).__name__}")
 
     def _on_final(self, event):
-        self._final_at = time.time()
-        with self._lock:
-            self._text = event.get("text", self._text)
-            text = self._text.strip()
-        self._result = {'text': text, 'model': self.model, 'stats': event.get("stats") or {}}
-        self._stopping.set()
-        self._done.set()
-        if self.on_final:
-            _safe_call(self.on_final, self._result['stats'].get("stop_reason"))
-
-    def _fail(self, code, message):
         with self._lock:
             if self._done.is_set():
                 return
-            prefix = f"otis-speech-server error {code}" if code else "otis-speech-server live session failed"
-            error = RuntimeError(f"{prefix}: {message}")
+            self._final_at = time.time()
+            self._text = event.get("text", self._text)
+            self._result = {'text': self._text.strip(), 'model': self.model, 'stats': event.get("stats") or {}}
+            self._stopping.set()
+            self._done.set()
+        if self.on_final:
+            _safe_call(self.on_final, self._result['stats'].get("stop_reason"))
+
+    def _fail(self, code, message, notify=True):
+        # Final, failure and cancel are mutually exclusive: the first one to take the lock wins.
+        with self._lock:
+            if self._done.is_set():
+                return False
+            error = RuntimeError(message)
             error.code = code
             error.partial_text = self._text.strip()
             self._error = error
             self._stopping.set()
             self._done.set()
-        if self.debug:
-            print(f"\nLive transcription failed: {error}")
-        if self.on_error and not self._closed_locally:
-            _safe_call(self.on_error, error)
+        if notify:
+            if self.debug:
+                print(f"\nLive transcription failed: {error}")
+            if self.on_error and not self._closed_locally:
+                _safe_call(self.on_error, error)
+        return True
 
 
 def _to_pcm16(samples):
