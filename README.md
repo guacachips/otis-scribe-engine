@@ -53,6 +53,8 @@ recorder.record()
 result = live.finish()  # {'text', 'transcription_time', 'model', 'stats'}; RuntimeError (.code, .partial_text) on failure
 ```
 
+If the server restarts or shuts down mid-session, it closes the WebSocket (code 1012) without an error event, so `finish()` raises a lost-connection `RuntimeError` with `.code` None; the text received so far is in `.partial_text`.
+
 ## Structure
 
 - `audio/` - VAD-based recording (Silero VAD)

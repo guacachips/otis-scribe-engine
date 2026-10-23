@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `LocalServerLiveTranscriber(base_url, model="voxtral-realtime-4bit", transcription_delay_ms=480, on_delta, on_error, on_final, chunk_ms=320)`: live transcription over the `otis-speech-server` WebSocket endpoint `/v1/audio/transcriptions/realtime` (requires otis-speech-server 0.2.0 or later). `start()`, `feed(samples)` (never blocks; audio is dropped and counted in `dropped_seconds` if the sender falls behind), `finish(timeout)` returning `{'text', 'transcription_time', 'model', 'stats'}`, `cancel()` and the `text` property. `on_delta(delta, text_so_far)` streams text as it arrives; `on_final(stop_reason)` signals a session the server ended itself (`eos`, `max_duration`)
-- Failures raise `RuntimeError` carrying `.code` (the server error code, e.g. `busy`, `model_not_found`) and `.partial_text`; `start()` raises `LocalServerUnavailableError` when the server is not reachable. No reconnect
+- Failures raise `RuntimeError` carrying `.code` (the server error code, e.g. `busy`, `model_not_found`) and `.partial_text`; `start()` raises `LocalServerUnavailableError` when the server is not reachable. No reconnect. A server restart or shutdown mid-session closes the WebSocket (code 1012) without a final or error event: `finish()` then raises a lost-connection `RuntimeError` with `.code` None and the text so far in `.partial_text`
 - `AudioRecorder(on_audio=...)` receives each captured block (float32 mono 16 kHz) as it is recorded. Live audio is sent un-normalized; the saved WAV is still peak-normalized
 - Live integration tests (skip when no server is running)
 
