@@ -132,8 +132,9 @@ class AudioRecorder:
         Raises:
             DeadInputError: If the device delivers only zeros, even after one retry
         """
-        self.is_recording = True
+        # Reset before is_recording turns True: a stop_recording() that sees is_recording must not be undone.
         self._stop_requested = False
+        self.is_recording = True
         try:
             self._resolve_input_device()
             self._capture()
