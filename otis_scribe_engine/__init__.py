@@ -1,6 +1,6 @@
 from pathlib import Path
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 PACKAGE_ROOT = Path(__file__).parent
 
 from .audio import AudioRecorder, DeadInputError, VADConfig, AudioDeviceManager
