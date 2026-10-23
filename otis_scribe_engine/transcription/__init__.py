@@ -2,7 +2,7 @@ from .base import Transcriber
 from .gemini import GeminiTranscriber
 from .whisper import WhisperTranscriber
 from .mistral_api import MistralTranscriber
-from .local_server import LocalServerTranscriber, LocalServerUnavailableError
+from .local_server import LocalServerTranscriber, LocalServerLiveTranscriber, LocalServerUnavailableError
 
 def get_transcriber(engine: str, **kwargs) -> Transcriber:
     if engine == "gemini":
@@ -17,4 +17,5 @@ def get_transcriber(engine: str, **kwargs) -> Transcriber:
         raise ValueError(f"Unknown transcription engine: {engine}")
 
 __all__ = ['Transcriber', 'GeminiTranscriber', 'WhisperTranscriber', 'MistralTranscriber',
-           'LocalServerTranscriber', 'LocalServerUnavailableError', 'get_transcriber']
+           'LocalServerTranscriber', 'LocalServerLiveTranscriber', 'LocalServerUnavailableError',
+           'get_transcriber']

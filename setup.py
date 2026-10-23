@@ -15,6 +15,7 @@ setup(
         "python-dotenv>=1.0.0",
         "torch>=2.0.0",
         "torchaudio>=2.0.0",
+        "websockets>=15",  # connect(proxy=None) exists since 15.0
     ],
     extras_require={
         "whisper": [
